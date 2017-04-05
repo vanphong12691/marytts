@@ -1,0 +1,16 @@
+E vi0
+N vi1
+O vi2
+P vi3
+Q vi4
+W vi5
+_ vi6
+_1 vi7
+_2 vi8
+_3 vi9
+_4 vi10
+_5 vi11
+_6 vi12
+_7 vi13
+_8 vi14
+as= vi15
