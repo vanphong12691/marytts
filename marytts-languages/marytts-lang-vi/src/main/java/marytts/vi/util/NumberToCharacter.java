@@ -2,8 +2,6 @@ package marytts.vi.util;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import groovy.ui.SystemOutputInterceptor;
-
 public class NumberToCharacter {
 	 public static final String KHONG = "không";    
 	    public static final String MOT = "một";
@@ -29,11 +27,7 @@ public class NumberToCharacter {
 	    public static final String [] number = {KHONG, MOT, HAI, BA,
 	        BON, NAM, SAU, BAY, TAM, CHIN};
 	    
-	    public static void main(String[] args) {
-	    	System.out.println(readRealNumber("-01230,1200000"));
-	       
-		}
-	    
+	   
 	    public static String  readRealNumber(String number){
 	    	if(number != null && !number.isEmpty()){
 	    		ArrayList<String> rs = new ArrayList<String>();

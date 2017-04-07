@@ -5,7 +5,6 @@ import java.io.InputStreamReader;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -32,7 +31,6 @@ import org.w3c.dom.traversal.NodeFilter;
 import org.w3c.dom.traversal.TreeWalker;
 
 import com.ibm.icu.util.ULocale;
-import com.ibm.icu.text.DateFormat;
 import com.ibm.icu.text.RuleBasedNumberFormat;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
@@ -95,12 +93,6 @@ public class Preprocess extends InternalModule {
 	// symbols map
 	private static final Map<String, String> symbols;
 
-	// icu4j stuff
-	private RuleBasedNumberFormat rbnf;
-	protected final String cardinalRule;
-	protected final String ordinalRule;
-	protected final String yearRule;
-	
 	private static final Pattern timePattern;
 	private static final Pattern durationPattern;
 	private static final Pattern abbrevPattern;
@@ -114,8 +106,6 @@ public class Preprocess extends InternalModule {
 	private static final Pattern consonantPattern;
 	private static final Pattern punctuationPattern;
 	private static final Pattern hashtagPattern;
-	private static final Pattern numberSPattern;
-
 	// Regex initialization
 	static {
 		Pattern.compile("(\\d+)(\\.\\d+)?");
@@ -134,7 +124,7 @@ public class Preprocess extends InternalModule {
 		
 		consonantPattern = Pattern.compile("[b-df-hj-np-tv-z]+", Pattern.CASE_INSENSITIVE);
 		punctuationPattern = Pattern.compile("\\p{Punct}");
-		numberSPattern = Pattern.compile("([0-9]+)([sS])");
+		Pattern.compile("([0-9]+)([sS])");
 		Pattern.compile(",\\.:;?'\"");
 		hashtagPattern = Pattern.compile("(#)(\\w+)");
 		URLPattern = Pattern.compile(
@@ -159,10 +149,6 @@ public class Preprocess extends InternalModule {
 
 	public Preprocess() {
 		super("Preprocess", MaryDataType.TOKENS, MaryDataType.WORDS, new Locale("vi"));
-		this.rbnf = new RuleBasedNumberFormat(ULocale.ENGLISH, RuleBasedNumberFormat.SPELLOUT);
-		this.cardinalRule = "%spellout-numbering";
-		this.ordinalRule = getOrdinalRuleName(rbnf);
-		this.yearRule = getYearRuleName(rbnf);
 		try {
 			this.abbrevMap = loadAbbrevMap();
 		} catch (IOException e) {
@@ -323,27 +309,21 @@ public class Preprocess extends InternalModule {
 		}
 	}
 
-	protected String expandNumber(double number) {
-		this.rbnf.setDefaultRuleSet(cardinalRule);
-		return this.rbnf.format(number);
-	}
+	
 
-	protected String expandOrdinal(double number) {
-		this.rbnf.setDefaultRuleSet(ordinalRule);
-		return this.rbnf.format(number);
-	}
+	
 
 	protected String expandDuration(String duration) {
 		Matcher durMatcher = durationPattern.matcher(duration);
 		durMatcher.find();
-		String hrs = expandNumber(Double.parseDouble(durMatcher.group(1))) + " hours ";
-		String mins = expandNumber(Double.parseDouble(durMatcher.group(2))) + " minutes ";
-		String secs = expandNumber(Double.parseDouble(durMatcher.group(3))) + " seconds ";
+		String hrs = NumberToCharacter.readRealNumber(durMatcher.group(1)) + " giờ ";
+		String mins = NumberToCharacter.readRealNumber(durMatcher.group(2)) + " phút ";
+		String secs = NumberToCharacter.readRealNumber(durMatcher.group(3)) + " giây ";
 		String ms = "";
 		if (durMatcher.group(4) != null) {
-			ms = "and " + expandNumber(Double.parseDouble(durMatcher.group(5))) + " milliseconds ";
+			ms = "và " + NumberToCharacter.readRealNumber(durMatcher.group(5)) + " mi li giây ";
 		} else {
-			secs = "and " + secs;
+			secs = " " + secs;
 		}
 		return hrs + mins + secs + ms;
 	}
@@ -387,11 +367,11 @@ public class Preprocess extends InternalModule {
 			String temp = "";
 			for (char c : tag.toCharArray()) {
 				if (Character.isDigit(c) && temp.matches("^$|[0-9]+")) {
-					temp += c;
+					temp += " "+NumberToCharacter.readRealNumber(c+"")+" ";
 				} else if (Character.isDigit(c) && temp.matches(".+[0-9]")) {
-					temp += c;
+					temp += " "+NumberToCharacter.readRealNumber(c+"")+" ";
 				} else if (Character.isDigit(c)) {
-					temp += " " + c;
+					temp += " "+NumberToCharacter.readRealNumber(c+"")+" ";
 				} else if (!temp.equals("") && Character.isUpperCase(c)) {
 					if (Character.isUpperCase(temp.charAt(temp.length() - 1))) {
 						temp += c;
@@ -415,33 +395,6 @@ public class Preprocess extends InternalModule {
 		return symbols.get(hashTagMatcher.group(1)) + " " + expandedTag;
 	}
 
-	/***
-	 * expands a digit followed by an s. e.g. 7s and 8s and the 60s
-	 *
-	 * @param numberS
-	 *            numberS
-	 * @return number
-	 */
-	protected String expandNumberS(String numberS) {
-		Matcher numberSMatcher = numberSPattern.matcher(numberS);
-		numberSMatcher.find();
-		String number = expandNumber(Double.parseDouble(numberSMatcher.group(1)));
-		if (number.endsWith("x")) {
-			number += "es";
-		} else if (number.endsWith("y")) {
-			number = number.replace("y", "ies");
-		} else {
-			number += "s";
-		}
-		return number;
-	}
-
-	protected String splitContraction(String contraction) {
-		int aposIndex = contraction.indexOf("'");
-		String lemma = contraction.substring(0, aposIndex);
-		String end = contraction.substring(aposIndex);
-		return lemma + " " + end;
-	}
 
 	/***
 	 *
@@ -489,7 +442,6 @@ public class Preprocess extends InternalModule {
 	 * @return theTime
 	 */
 	protected String expandTime(String time, boolean isNextTokenTime) {
-		boolean pastNoon = false;
 		String theTime = "";
 		String hour = "";
 		Double pmHour;
@@ -501,49 +453,37 @@ public class Preprocess extends InternalModule {
 			if (hour.equals("00")) {
 				hour = "12";
 			}
-			theTime += expandNumber(Double.parseDouble(hour));
+			theTime += NumberToCharacter.readRealNumber(hour);
 		} else {
-			pastNoon = true;
 			hour = (timeMatch.group(4) != null) ? timeMatch.group(4) : timeMatch.group(5);
 			pmHour = Double.parseDouble(hour) - 12;
 			if (pmHour == 0) {
 				hour = "12";
-				theTime += expandNumber(Double.parseDouble(hour));
+				theTime += NumberToCharacter.readRealNumber(hour);
 			} else {
-				theTime += expandNumber(pmHour);
+				theTime += NumberToCharacter.readRealNumber(pmHour+"");
 			}
 		}
 		// minutes
 		if (timeMatch.group(7) != null && !isNextTokenTime) {
 			if (!timeMatch.group(6).equals("00")) {
-				if (timeMatch.group(6).matches("0\\d")) {
-					theTime += " oh " + expandNumber(Double.parseDouble(timeMatch.group(6)));
-				} else {
-					theTime += " " + expandNumber(Double.parseDouble(timeMatch.group(6)));
-				}
+				
+				theTime += " giờ " + NumberToCharacter.readRealNumber(timeMatch.group(6));
+				
 			}
 			for (char c : timeMatch.group(7).replaceAll("\\.", "").toCharArray()) {
 				theTime += " " + c;
 			}
 		} else if (!isNextTokenTime) {
 			if (!timeMatch.group(6).equals("00")) {
-				if (timeMatch.group(6).matches("0\\d")) {
-					theTime += " oh " + expandNumber(Double.parseDouble(timeMatch.group(6)));
-				} else {
-					theTime += " " + expandNumber(Double.parseDouble(timeMatch.group(6)));
-				}
+				theTime += " giờ " + NumberToCharacter.readRealNumber(timeMatch.group(6));
 			}
-			theTime += !pastNoon ? " a m" : " p m";
 		} else {
 			if (!timeMatch.group(6).equals("00")) {
-				if (timeMatch.group(6).matches("0\\d")) {
-					theTime += " oh " + expandNumber(Double.parseDouble(timeMatch.group(6)));
-				} else {
-					theTime += " " + expandNumber(Double.parseDouble(timeMatch.group(6)));
-				}
+				theTime += " giờ " + NumberToCharacter.readRealNumber(timeMatch.group(6));
 			}
 		}
-		return theTime;
+		return theTime.replace(" p m", " phút chiều").replace(" a m", " phút sáng");
 	}
 
 	protected String expandWordNumber(String wordnumseq) {
