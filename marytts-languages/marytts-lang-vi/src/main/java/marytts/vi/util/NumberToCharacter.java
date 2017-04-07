@@ -90,7 +90,11 @@ public class NumberToCharacter {
 	            List_Num.remove(0);
 	        }
 	 
-	 
+	        if(kq.size()>1){
+	        	if("lẻ".equals(kq.get(0))){
+	        		kq.set(0, "không");
+	        	}
+	        }
 	        return kq;
 	    }
 	    
