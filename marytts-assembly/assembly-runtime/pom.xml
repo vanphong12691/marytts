@@ -89,6 +89,18 @@
 			<type>xml</type>
 			<classifier>component</classifier>
 		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>voice-hongnhung-hsmm</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>voice-hongnhung-hsmm</artifactId>
+			<version>${project.version}</version>
+			<type>xml</type>
+			<classifier>component</classifier>
+		</dependency>
 	</dependencies>
 
 	<build>
