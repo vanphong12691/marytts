@@ -6,7 +6,6 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
@@ -30,61 +29,9 @@ import org.w3c.dom.traversal.DocumentTraversal;
 import org.w3c.dom.traversal.NodeFilter;
 import org.w3c.dom.traversal.TreeWalker;
 
-import com.ibm.icu.util.ULocale;
-import com.ibm.icu.text.RuleBasedNumberFormat;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 
-/**
- * @author Tristan Hamilton
- *
- *         <p>
- *         Can process following formats:
- *         <ul>
- *         <li>cardinal (handled by real number)
- *         <li>ordinal
- *         <li>year (as a 4 digit number or any number followed by AD/BC
- *         variation)
- *         <li>currency
- *         <li>numberandword together
- *         <li>dashes (read each number singly) or (split into two words)
- *         <li>underscores
- *         <li>decimal point, minus symbol (real numbers) also handles &#037;,
- *         however Jtokeniser splits &#037; into separate tokens
- *         <li>time
- *         <li>dates (in format mm/dd/yyyy)
- *         <li>acronyms (only split into single characters, never expanded)
- *         <li>abbreviations (list of known expansions in resource
- *         preprocess/abbrev.dat, a properties file separated by whitespace. If
- *         an abbrev has two different expansions then the capitalized version
- *         comes first, followed by a comma)
- *         <li>contractions &rarr; first check lexicon, if not then &rarr; split
- *         and check if map contains contraction, if not then just remove
- *         apostrophe else &rarr; split before apostrophe into two tokens, use
- *         map to manually add ph &rarr; for 's if word ends in c,f,k,p,t then
- *         add ph &#061; s otherwise ph &#061; z
- *         <li>ampersand &amp;, "at" &#064; symbol, &rarr; symbols
- *         <li>urls &rarr; note that jtokeniser splits off http[s]?://
- *         <li>number ranges "18-35"
- *         <li>words without vowels &rarr; first check lexicon, if not then
- *         separate into single character tokens
- *         <li>#hashtags
- *         <li>single "A/a" character &rarr; if there is no next token or the
- *         next token is punctuation or next token string.length &#061;&#061; 1
- *         <li>should also as a last processing attempt, split by
- *         punctuation,symbols,etc. and attempt to process these tokens
- *         separately
- *         <li>durations hours:minutes:seconds(:milliseconds)
- *         <li>numbers followed by an s
- *         <li>punctuation &rarr; add ph attribute to tag to prevent
- *         phonemisation
- *         </ul>
- *         <p>
- *         May include:
- *         <ul>
- *         <li>roman numerals
- *         </ul>
- */
 public class Preprocess extends InternalModule {
 
 	// abbreviations map
@@ -121,7 +68,7 @@ public class Preprocess extends InternalModule {
 		datePattern = Pattern.compile(
 				"(?:(?:31(\\/|-|\\.)(?:0?[13578]|1[02]))\\1|(?:(?:29|30)(\\/|-|\\.)(?:0?[1,3-9]|1[0-2])\\2))(?:(?:1[6-9]|[2-9]\\d)?\\d{2})$|^(?:29(\\/|-|\\.)0?2\\3(?:(?:(?:1[6-9]|[2-9]\\d)?(?:0[48]|[2468][048]|[13579][26])|(?:(?:16|[2468][048]|[3579][26])00))))$|^(?:0?[1-9]|1\\d|2[0-8])(\\/|-|\\.)(?:(?:0?[1-9])|(?:1[0-2]))\\4(?:(?:1[6-9]|[2-9]\\d)?\\d{2})");
 		symbolsPattern = Pattern.compile("[@%#\\/\\+=&><-]");
-		
+
 		consonantPattern = Pattern.compile("[b-df-hj-np-tv-z]+", Pattern.CASE_INSENSITIVE);
 		punctuationPattern = Pattern.compile("\\p{Punct}");
 		Pattern.compile("([0-9]+)([sS])");
@@ -190,11 +137,6 @@ public class Preprocess extends InternalModule {
 		// loop through each node in dom tree
 		while ((t = (Element) tw.nextNode()) != null) {
 
-			/*
-			 * PRELIM FOR EACH NODE
-			 */
-
-			// to accommodate the first token being a url
 			if (URLFirst) {
 				t = (Element) tw.previousNode();
 				URLFirst = false;
@@ -202,24 +144,22 @@ public class Preprocess extends InternalModule {
 			// save the original token text
 			String origText = MaryDomUtils.tokenText(t);
 
-			/*
-			 * ACTUAL PROCESSING
-			 */
-
+			// Token là ngày tháng
 			if (MaryDomUtils.tokenText(t).matches(datePattern.pattern())) {
 				MaryDomUtils.setTokenText(t, expandDate(MaryDomUtils.tokenText(t)));
-				// number followed by s
+				// Token là chữ và số liền nhau
 			} else if (MaryDomUtils.tokenText(t).matches(numberWordPattern.pattern())) {
 				MaryDomUtils.setTokenText(t, expandWordNumber(MaryDomUtils.tokenText(t)));
-				// real number & currency
+				// Token là số thực
 			} else if (MaryDomUtils.tokenText(t).matches(realNumPattern.pattern())
 					&& !"-".equals(MaryDomUtils.tokenText(t))) {
 
 				MaryDomUtils.setTokenText(t, NumberToCharacter.readRealNumber(MaryDomUtils.tokenText(t)));
 
+				// Token là chữ viết tắt
 			} else if (MaryDomUtils.tokenText(t).matches(acronymPattern.pattern())) {
 				MaryDomUtils.setTokenText(t, expandAcronym(MaryDomUtils.tokenText(t)));
-				// abbreviation
+				// Chữ viết tắt có thay thế
 			} else if ((MaryDomUtils.tokenText(t).matches(abbrevPattern.pattern())
 					|| this.abbrevMap.containsKey(MaryDomUtils.tokenText(t).toLowerCase())) && !isURL) {
 				Element testAbbNode = MaryDomUtils.getNextSiblingElement((Element) t);
@@ -228,7 +168,7 @@ public class Preprocess extends InternalModule {
 					nextTokenIsCapital = true;
 				}
 				MaryDomUtils.setTokenText(t, expandAbbreviation(MaryDomUtils.tokenText(t), nextTokenIsCapital));
-				// time
+				// Token là thời gian rút gọn(ex 11:59pm,..)
 			} else if (MaryDomUtils.tokenText(t).matches("(?i)" + timePattern.pattern())) {
 				Element testTimeNode = MaryDomUtils.getNextSiblingElement((Element) t);
 				boolean nextTokenIsTime = false;
@@ -237,7 +177,7 @@ public class Preprocess extends InternalModule {
 					nextTokenIsTime = true;
 				}
 				MaryDomUtils.setTokenText(t, expandTime(MaryDomUtils.tokenText(t), nextTokenIsTime));
-				// duration
+				// Token là thời gian đầy đủ (ex 11:59:14)
 			} else if (MaryDomUtils.tokenText(t).matches(durationPattern.pattern())) {
 				MaryDomUtils.setTokenText(t, expandDuration(MaryDomUtils.tokenText(t)));
 				// hashtags
@@ -251,7 +191,7 @@ public class Preprocess extends InternalModule {
 				webEmailTemp = MaryDomUtils.tokenText(t);
 				isURL = true;
 				MaryDomUtils.setTokenText(t, expandURL(urlMatcher.group(2)));
-				// dot . for web and email addresses
+				// Chuyển . thành "chấm" trong trường hợp là website
 			} else if (MaryDomUtils.tokenText(t).equals(".") && isURL) {
 				MaryDomUtils.setTokenText(t, "chấm");
 				webEmailTemp = webEmailTemp.replaceFirst("\\.", "chấm");
@@ -261,7 +201,6 @@ public class Preprocess extends InternalModule {
 				// symbols
 			} else if (MaryDomUtils.tokenText(t).matches(symbolsPattern.pattern())) {
 				MaryDomUtils.setTokenText(t, symbols.get(MaryDomUtils.tokenText(t)));
-				// number ranges &rarr; before checking for dashes
 			} else if (MaryDomUtils.tokenText(t).matches("(?i)" + consonantPattern.pattern())) {
 				// first check lexicon
 				if (MaryRuntimeUtils.checkLexicon("vi", MaryDomUtils.tokenText(t)).length == 0) {
@@ -309,10 +248,12 @@ public class Preprocess extends InternalModule {
 		}
 	}
 
-	
-
-	
-
+	/**
+	 * Chuyển thời gian thành chữ
+	 * Nhập vào 15:20:30 thì kết quả là: mười lăm giờ hai mươi phút ba mươi giây.
+	 * @param duration 
+	 * @return string
+	 */
 	protected String expandDuration(String duration) {
 		Matcher durMatcher = durationPattern.matcher(duration);
 		durMatcher.find();
@@ -328,6 +269,11 @@ public class Preprocess extends InternalModule {
 		return hrs + mins + secs + ms;
 	}
 
+	/**
+	 * Xóa tất cả dấu chấm trong từ viết tắt.
+	 * @param acronym
+	 * @return
+	 */
 	protected String expandAcronym(String acronym) {
 		return acronym.replaceAll("\\.", " ");
 	}
@@ -342,9 +288,11 @@ public class Preprocess extends InternalModule {
 	 */
 	protected String expandURL(String email) {
 		String[] tokens = email.split("((?<=[\\.@\\/])|(?=[\\.@\\/]))");
+		for (int i = 0; i < tokens.length; i++) {
+			tokens[i] = expandAbbreviation(tokens[i], false);
+		}
 		return Arrays.toString(tokens).replaceAll("[,\\]\\[]", "");
 	}
-
 
 	/***
 	 * add a space between each char of a string
@@ -357,6 +305,11 @@ public class Preprocess extends InternalModule {
 		return Joiner.on(" ").join(Lists.charactersOf(consonants));
 	}
 
+	/**
+	 * Xử lý cho trường hợp hastag, đang sử dụng như tiếng anh
+	 * @param hashtag
+	 * @return
+	 */
 	protected String expandHashtag(String hashtag) {
 		String tag = "";
 		String expandedTag = "";
@@ -367,11 +320,11 @@ public class Preprocess extends InternalModule {
 			String temp = "";
 			for (char c : tag.toCharArray()) {
 				if (Character.isDigit(c) && temp.matches("^$|[0-9]+")) {
-					temp += " "+NumberToCharacter.readRealNumber(c+"")+" ";
+					temp += " " + NumberToCharacter.readRealNumber(c + "") + " ";
 				} else if (Character.isDigit(c) && temp.matches(".+[0-9]")) {
-					temp += " "+NumberToCharacter.readRealNumber(c+"")+" ";
+					temp += " " + NumberToCharacter.readRealNumber(c + "") + " ";
 				} else if (Character.isDigit(c)) {
-					temp += " "+NumberToCharacter.readRealNumber(c+"")+" ";
+					temp += " " + NumberToCharacter.readRealNumber(c + "") + " ";
 				} else if (!temp.equals("") && Character.isUpperCase(c)) {
 					if (Character.isUpperCase(temp.charAt(temp.length() - 1))) {
 						temp += c;
@@ -395,9 +348,9 @@ public class Preprocess extends InternalModule {
 		return symbols.get(hashTagMatcher.group(1)) + " " + expandedTag;
 	}
 
-
 	/***
-	 *
+	 * Thay thế những từ tồn tại trong file abbrev thành từ tương ứng
+	 * Ví dụ vnđ chuyển thành việt nam đồng
 	 * @param abbrev
 	 *            the token to be expanded
 	 * @param isCapital
@@ -405,7 +358,7 @@ public class Preprocess extends InternalModule {
 	 * @return abbrev
 	 */
 	protected String expandAbbreviation(String abbrev, boolean isCapital) {
-		String expAbb = abbrev.replaceAll("\\.", "").toLowerCase();
+		String expAbb = abbrev.toLowerCase();
 		if (!abbrevMap.containsKey(expAbb)) {
 			logger.warn(String.format("Could not expand unknown abbreviation \"%s\", ignoring", abbrev));
 			return abbrev;
@@ -421,7 +374,12 @@ public class Preprocess extends InternalModule {
 		}
 		return expAbb;
 	}
-
+	/**
+	 * Chuyển ngày thành chữ, ví dụ 20/10/2016 thành hai mươi tháng mười năm hai nghìn không trăm mười sáu. 
+	 * @param date
+	 * @return
+	 * @throws ParseException
+	 */
 	protected String expandDate(String date) throws ParseException {
 		String[] tempt = date.split("[\\/.]");
 		ArrayList<String> rs = new ArrayList<String>();
@@ -434,7 +392,7 @@ public class Preprocess extends InternalModule {
 	}
 
 	/***
-	 *
+	 * Chuyển thời gian rút gọn thành chữ, ví dụ 11:50pm thành mười một giờ năm mươi phút chiều
 	 * @param time
 	 *            the token to be expanded
 	 * @param isNextTokenTime
@@ -461,15 +419,15 @@ public class Preprocess extends InternalModule {
 				hour = "12";
 				theTime += NumberToCharacter.readRealNumber(hour);
 			} else {
-				theTime += NumberToCharacter.readRealNumber(pmHour+"");
+				theTime += NumberToCharacter.readRealNumber(pmHour + "");
 			}
 		}
 		// minutes
 		if (timeMatch.group(7) != null && !isNextTokenTime) {
 			if (!timeMatch.group(6).equals("00")) {
-				
+
 				theTime += " giờ " + NumberToCharacter.readRealNumber(timeMatch.group(6));
-				
+
 			}
 			for (char c : timeMatch.group(7).replaceAll("\\.", "").toCharArray()) {
 				theTime += " " + c;
@@ -486,6 +444,11 @@ public class Preprocess extends InternalModule {
 		return theTime.replace(" p m", " phút chiều").replace(" a m", " phút sáng");
 	}
 
+	/**
+	 * Chuyển token từ chữ và số thành toàn chữ (ví dụ ABC124 thành  A B C một hai bốn)
+	 * @param wordnumseq
+	 * @return
+	 */
 	protected String expandWordNumber(String wordnumseq) {
 		String[] groups = wordnumseq.split("(?<=\\D)(?=\\d)|(?<=\\d)(?=\\D)");
 		ArrayList<String> rs = new ArrayList<String>();
@@ -504,63 +467,11 @@ public class Preprocess extends InternalModule {
 		}
 		return String.join(" ", rs);
 	}
-
 	/**
-	 * Try to extract the rule name for "expand ordinal" from the given
-	 * RuleBasedNumberFormat.
-	 * <p>
-	 * The rule name is locale sensitive, but usually starts with
-	 * "%spellout-ordinal".
-	 *
-	 * @param rbnf
-	 *            The RuleBasedNumberFormat from where we will try to extract
-	 *            the rule name.
-	 * @return The rule name for "ordinal spell out".
+	 * Lấy tất cả những từ cần thay thế trong file abbrev.dat
+	 * @return
+	 * @throws IOException
 	 */
-	protected static String getOrdinalRuleName(final RuleBasedNumberFormat rbnf) {
-		List<String> l = Arrays.asList(rbnf.getRuleSetNames());
-		if (l.contains("%spellout-ordinal")) {
-			return "%spellout-ordinal";
-		} else if (l.contains("%spellout-ordinal-masculine")) {
-			return "%spellout-ordinal-masculine";
-		} else {
-			for (String string : l) {
-				if (string.startsWith("%spellout-ordinal")) {
-					return string;
-				}
-			}
-		}
-		throw new UnsupportedOperationException(
-				"The locale " + rbnf.getLocale(ULocale.ACTUAL_LOCALE) + " doesn't support ordinal spelling.");
-	}
-
-	/**
-	 * Try to extract the rule name for "expand year" from the given
-	 * RuleBasedNumberFormat.
-	 * <p>
-	 * The rule name is locale sensitive, but usually starts with
-	 * "%spellout-numbering-year".
-	 *
-	 * @param rbnf
-	 *            The RuleBasedNumberFormat from where we will try to extract
-	 *            the rule name.
-	 * @return The rule name for "year spell out".
-	 */
-	protected static String getYearRuleName(final RuleBasedNumberFormat rbnf) {
-		List<String> l = Arrays.asList(rbnf.getRuleSetNames());
-		if (l.contains("%spellout-numbering-year")) {
-			return "%spellout-numbering-year";
-		} else {
-			for (String string : l) {
-				if (string.startsWith("%spellout-numbering-year")) {
-					return string;
-				}
-			}
-		}
-		throw new UnsupportedOperationException(
-				"The locale " + rbnf.getLocale(ULocale.ACTUAL_LOCALE) + " doesn't support year spelling.");
-	}
-
 	public static Map<Object, Object> loadAbbrevMap() throws IOException {
 		Map<Object, Object> abbMap = new Properties();
 		((Properties) abbMap)
