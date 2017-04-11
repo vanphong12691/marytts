@@ -1,0 +1,5 @@
+E vi0
+N vi1
+O vi2
+W vi3
+_ vi4
