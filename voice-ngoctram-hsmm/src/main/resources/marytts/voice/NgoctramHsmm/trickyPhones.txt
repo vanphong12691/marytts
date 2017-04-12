@@ -1,0 +1,13 @@
+E vi0
+N vi1
+O vi2
+W vi3
+_ vi4
+_1 vi5
+_2 vi6
+_3 vi7
+_4 vi8
+_5 vi9
+_6 vi10
+_7 vi11
+_8 vi12
